@@ -1,5 +1,16 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, Button, TextInput } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import {
+	View,
+	Text,
+	StyleSheet,
+	Button,
+	TextInput,
+	SafeAreaView,
+	ScrollView,
+	Animated,
+	TouchableOpacity,
+	Image,
+} from "react-native";
 
 const TirePressureApp = () => {
 	const [deviceIP, setDeviceIP] = useState("");
@@ -57,95 +68,154 @@ const TirePressureApp = () => {
 	};
 
 	return (
-		<View style={styles.container}>
-			<Text style={styles.title}>Tire Pressure Monitoring</Text>
-			{selectedDevice ? (
-				<View style={styles.dataContainer}>
-					<Text style={styles.connected}>
-						Connected to ESP32: {selectedDevice}
-					</Text>
-					<View style={styles.tiresContainer}>
-						<View style={styles.row}>
-							<WheelInfo
-								data={wheelData.FL}
-								position="FL"
-								onIncrease={() =>
-									sendCommand({ wheel: "FL", command: "INCREASE" })
-								}
-								onDecrease={() =>
-									sendCommand({ wheel: "FL", command: "DECREASE" })
-								}
-							/>
-							<WheelInfo
-								data={wheelData.FR}
-								position="FR"
-								onIncrease={() =>
-									sendCommand({ wheel: "FR", command: "INCREASE" })
-								}
-								onDecrease={() =>
-									sendCommand({ wheel: "FR", command: "DECREASE" })
-								}
-							/>
+		<SafeAreaView style={styles.container}>
+			{/* ScrollView lets the whole screen scroll vertically */}
+			<ScrollView
+				contentContainerStyle={styles.scrollContent}
+				keyboardShouldPersistTaps="handled"
+			>
+				{/* <Text style={styles.title}>Tire Pressure Monitoring</Text> */}
+				{selectedDevice ? (
+					//Actual Control GUI
+					<View style={styles.dataContainer}>
+						<View style={styles.tiresContainer}>
+							<View style={styles.row}>
+								<WheelInfo
+									data={wheelData.FR}
+									position="FR"
+									onIncrease={() =>
+										sendCommand({ wheel: "FR", command: "INCREASE" })
+									}
+									onDecrease={() =>
+										sendCommand({ wheel: "FR", command: "DECREASE" })
+									}
+								/>
+								<WheelInfo
+									data={wheelData.RR}
+									position="RR"
+									onIncrease={() =>
+										sendCommand({ wheel: "RR", command: "INCREASE" })
+									}
+									onDecrease={() =>
+										sendCommand({ wheel: "RR", command: "DECREASE" })
+									}
+								/>
+							</View>
+
+							<View style={styles.row}>
+								<WheelInfo
+									data={wheelData.FL}
+									position="FL"
+									onIncrease={() =>
+										sendCommand({ wheel: "FL", command: "INCREASE" })
+									}
+									onDecrease={() =>
+										sendCommand({ wheel: "FL", command: "DECREASE" })
+									}
+								/>
+								<WheelInfo
+									data={wheelData.RL}
+									position="RL"
+									onIncrease={() =>
+										sendCommand({ wheel: "RL", command: "INCREASE" })
+									}
+									onDecrease={() =>
+										sendCommand({ wheel: "RL", command: "DECREASE" })
+									}
+								/>
+							</View>
 						</View>
-						<View style={styles.row}>
-							<WheelInfo
-								data={wheelData.RL}
-								position="RL"
-								onIncrease={() =>
-									sendCommand({ wheel: "RL", command: "INCREASE" })
-								}
-								onDecrease={() =>
-									sendCommand({ wheel: "RL", command: "DECREASE" })
-								}
-							/>
-							<WheelInfo
-								data={wheelData.RR}
-								position="RR"
-								onIncrease={() =>
-									sendCommand({ wheel: "RR", command: "INCREASE" })
-								}
-								onDecrease={() =>
-									sendCommand({ wheel: "RR", command: "DECREASE" })
-								}
-							/>
-						</View>
+						<Button title="Disconnect" onPress={disconnectDevice} />
 					</View>
-					<Button title="Disconnect" onPress={disconnectDevice} />
-				</View>
-			) : (
-				<View style={styles.connectionContainer}>
-					<Text style={styles.sectionTitle}>Enter ESP32 IP Address:</Text>
-					<TextInput
-						style={styles.input}
-						placeholder="e.g. 192.168.1.50"
-						value={deviceIP}
-						onChangeText={setDeviceIP}
-						keyboardType="numeric"
-					/>
-					<Button title="Connect" onPress={connectToDevice} />
-				</View>
-			)}
-		</View>
+				) : (
+					//Connecting to the ESP32
+					<View style={styles.connectionContainer}>
+						<Text style={styles.sectionTitle}>Enter ESP32 IP Address:</Text>
+						<TextInput
+							style={styles.input}
+							placeholder="e.g. 192.168.1.50"
+							value={deviceIP}
+							onChangeText={setDeviceIP}
+							keyboardType="numeric"
+						/>
+						<Button title="Connect" onPress={connectToDevice} />
+					</View>
+				)}
+			</ScrollView>
+		</SafeAreaView>
 	);
 };
 
-const WheelInfo = ({ data, position, onIncrease, onDecrease }) => (
-	<View style={styles.wheelContainer}>
-		<Text style={styles.wheelPosition}>{position}</Text>
-		<Text style={styles.wheelData}>{Number(data.pressure).toFixed(2)} PSI</Text>
-		<Text style={styles.wheelData}>
-			{Number(data.temperature).toFixed(2)} °C
-		</Text>
-		<View style={styles.buttonsContainer}>
-			<View style={styles.buttons}>
-				<Button title="↑" onPress={onIncrease} />
+const WheelInfo = ({ data, position, onIncrease, onDecrease }) => {
+	const prevPressure = useRef(data.pressure);
+
+	// 2. Animated value drives the flash
+	const flashAnim = useRef(new Animated.Value(0)).current;
+
+	// 3. Store which color to flash (green or red)
+	const [flashColor, setFlashColor] = useState("green");
+
+	useEffect(() => {
+		// only run when pressure actually changes
+		if (prevPressure.current !== data.pressure) {
+			const isIncrease = data.pressure > prevPressure.current;
+			setFlashColor(isIncrease ? "green" : "red");
+			flashAnim.setValue(0);
+
+			// flash from 0 → 1 → 0 over 600ms
+			Animated.sequence([
+				Animated.timing(flashAnim, {
+					toValue: 1,
+					duration: 100,
+					useNativeDriver: false,
+				}),
+				Animated.timing(flashAnim, {
+					toValue: 0,
+					duration: 100,
+					useNativeDriver: false,
+				}),
+			]).start();
+
+			prevPressure.current = data.pressure;
+		}
+	}, [data.pressure, flashAnim]);
+
+	// interpolate the Animated.Value into a text color
+	const pressureColor = flashAnim.interpolate({
+		inputRange: [0, 1],
+		outputRange: ["#000", flashColor],
+	});
+
+	return (
+		<View style={styles.wheelContainer}>
+			<View style={styles.infoContainer}>
+				<Text style={styles.wheelData}>{position}</Text>
+				<Animated.Text style={[styles.wheelData, { color: pressureColor }]}>
+					{data.pressure.toFixed(2)} PSI
+				</Animated.Text>
+				<Text style={styles.wheelData}>
+					{Number(data.temperature).toFixed(2)} °C
+				</Text>
 			</View>
-			<View style={styles.buttons}>
-				<Button title="↓" onPress={onDecrease} />
+
+			<View style={styles.buttonsContainer}>
+				<TouchableOpacity onPress={onIncrease} style={styles.iconButton}>
+					<Image
+						source={require("./assets/arrow-up.png")}
+						style={styles.icon}
+					/>
+				</TouchableOpacity>
+
+				<TouchableOpacity onPress={onDecrease} style={styles.iconButton}>
+					<Image
+						source={require("./assets/arrow-down.png")}
+						style={styles.icon}
+					/>
+				</TouchableOpacity>
 			</View>
 		</View>
-	</View>
-);
+	);
+};
 
 const styles = StyleSheet.create({
 	container: {
@@ -156,8 +226,12 @@ const styles = StyleSheet.create({
 	title: {
 		fontSize: 24,
 		fontWeight: "bold",
-		marginBottom: 20,
+		marginBottom: 5,
 		textAlign: "center",
+	},
+	scrollContent: {
+		padding: 20,
+		flexGrow: 1,
 	},
 	dataContainer: {
 		flex: 1,
@@ -174,32 +248,41 @@ const styles = StyleSheet.create({
 	row: {
 		flexDirection: "row",
 		justifyContent: "space-between",
-		marginBottom: 20,
 	},
 	wheelContainer: {
 		backgroundColor: "white",
 		padding: 15,
 		borderRadius: 10,
-		width: "48%",
+		margin: 5,
+		flex: 1,
 		elevation: 3,
 	},
-	wheelPosition: {
-		fontSize: 20,
-		fontWeight: "bold",
-		marginBottom: 10,
+	infoContainer: {
+		flexDirection: "row",
+		flex: 1,
 	},
 	wheelData: {
-		fontSize: 16,
+		fontSize: 20,
+		fontWeight: "bold",
+		marginBottom: 5,
+		paddingLeft: 10,
+		paddingRight: 10,
 	},
 	buttonsContainer: {
 		flexDirection: "row",
 		alignItems: "center",
+		justifyContent: "space-evenly",
+		marginTop: 5,
 	},
-	buttons: {
-		paddingLeft: 5,
-		paddingRight: 5,
-		flex: 1,
-		paddingTop: 10,
+	iconButton: {
+		padding: 20, // give a larger tap area
+		borderRadius: 6, // optional: round the hit‑area
+		backgroundColor: "#eee", // optional: visible feedback background
+	},
+	icon: {
+		width: 45,
+		height: 45,
+		resizeMode: "contain",
 	},
 	connectionContainer: {
 		flex: 1,
