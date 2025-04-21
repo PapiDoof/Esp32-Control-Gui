@@ -40,14 +40,14 @@ const TirePressureApp = () => {
 	};
 
 	// Function to send a command to the ESP32
-	const sendCommand = (command) => {
+	const sendCommand = (payload) => {
 		if (!selectedDevice) return;
 		fetch(`http://${selectedDevice}/command`, {
 			method: "POST",
 			headers: {
-				"Content-Type": "text/plain",
+				"Content-Type": "application/json",
 			},
-			body: command,
+			body: JSON.stringify(payload),
 		})
 			.then((response) => response.text())
 			.then((text) => {
@@ -69,24 +69,44 @@ const TirePressureApp = () => {
 							<WheelInfo
 								data={wheelData.FL}
 								position="FL"
-								onPress={() => sendCommand("FL pressed")}
+								onIncrease={() =>
+									sendCommand({ wheel: "FL", command: "INCREASE" })
+								}
+								onDecrease={() =>
+									sendCommand({ wheel: "FL", command: "DECREASE" })
+								}
 							/>
 							<WheelInfo
 								data={wheelData.FR}
 								position="FR"
-								onPress={() => sendCommand("FR pressed")}
+								onIncrease={() =>
+									sendCommand({ wheel: "FR", command: "INCREASE" })
+								}
+								onDecrease={() =>
+									sendCommand({ wheel: "FR", command: "DECREASE" })
+								}
 							/>
 						</View>
 						<View style={styles.row}>
 							<WheelInfo
 								data={wheelData.RL}
 								position="RL"
-								onPress={() => sendCommand("RL pressed")}
+								onIncrease={() =>
+									sendCommand({ wheel: "RL", command: "INCREASE" })
+								}
+								onDecrease={() =>
+									sendCommand({ wheel: "RL", command: "DECREASE" })
+								}
 							/>
 							<WheelInfo
 								data={wheelData.RR}
 								position="RR"
-								onPress={() => sendCommand("RR pressed")}
+								onIncrease={() =>
+									sendCommand({ wheel: "RR", command: "INCREASE" })
+								}
+								onDecrease={() =>
+									sendCommand({ wheel: "RR", command: "DECREASE" })
+								}
 							/>
 						</View>
 					</View>
@@ -109,14 +129,21 @@ const TirePressureApp = () => {
 	);
 };
 
-const WheelInfo = ({ data, position, onPress }) => (
+const WheelInfo = ({ data, position, onIncrease, onDecrease }) => (
 	<View style={styles.wheelContainer}>
 		<Text style={styles.wheelPosition}>{position}</Text>
 		<Text style={styles.wheelData}>{Number(data.pressure).toFixed(2)} PSI</Text>
 		<Text style={styles.wheelData}>
 			{Number(data.temperature).toFixed(2)} °C
 		</Text>
-		<Button title="Press" onPress={onPress} />
+		<View style={styles.buttonsContainer}>
+			<View style={styles.buttons}>
+				<Button title="↑" onPress={onIncrease} />
+			</View>
+			<View style={styles.buttons}>
+				<Button title="↓" onPress={onDecrease} />
+			</View>
+		</View>
 	</View>
 );
 
@@ -163,6 +190,16 @@ const styles = StyleSheet.create({
 	},
 	wheelData: {
 		fontSize: 16,
+	},
+	buttonsContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+	},
+	buttons: {
+		paddingLeft: 5,
+		paddingRight: 5,
+		flex: 1,
+		paddingTop: 10,
 	},
 	connectionContainer: {
 		flex: 1,
